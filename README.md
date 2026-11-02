@@ -28,7 +28,14 @@ makepkg -si
 Then open **ArchUpdater** from your app launcher, or run `archupdater`.
 Shortcuts: `archupdater --updates` opens the Updates page, `archupdater --store` the store.
 
-Or install the prebuilt package from the [latest release](https://github.com/ppcharcoal/archupdater/releases/latest):
+Every push is built and tested on Arch Linux by GitHub Actions (see the **Actions** tab; the built
+package is attached to each run). Pushing a version tag also publishes it as a release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+After that, the package can be installed straight from the release:
 
 ```bash
 sudo pacman -U https://github.com/ppcharcoal/archupdater/releases/download/v1.0.0/archupdater-1.0.0-1-any.pkg.tar.zst
