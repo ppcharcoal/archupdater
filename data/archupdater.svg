@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1793d1"/>
+      <stop offset="1" stop-color="#0b5e8a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)"/>
+  <!-- stylised mountain (Arch-like peak) -->
+  <path d="M64 26 L96 96 C88 90 80 86 72 84 C74 78 72 72 64 70 C56 72 54 78 56 84 C48 86 40 90 32 96 Z"
+        fill="#ffffff" opacity="0.95"/>
+  <!-- update arrow -->
+  <circle cx="92" cy="92" r="20" fill="#ffffff"/>
+  <path d="M92 80 L92 100 M84 92 L92 100 L100 92" stroke="#0b5e8a" stroke-width="5"
+        stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

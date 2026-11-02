@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=ArchUpdater
+GenericName=Software Manager
+Comment=Install, update and remove software, and manage system snapshots
+Exec=archupdater %U
+Icon=archupdater
+Terminal=false
+Categories=System;PackageManager;Settings;
+Keywords=update;upgrade;install;uninstall;package;aur;flatpak;flathub;timeshift;snapshot;store;
+StartupWMClass=archupdater
+Actions=Updates;Store;
+
+[Desktop Action Updates]
+Name=Check for updates
+Exec=archupdater --updates
+
+[Desktop Action Store]
+Name=Get apps
+Exec=archupdater --store

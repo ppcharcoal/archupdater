@@ -1,0 +1,34 @@
+#!/bin/bash
+# ArchUpdater privileged helper. Started through pkexec (polkit asks for the
+# password). It only runs a fixed set of operations - anything else is refused.
+set -u
+
+op="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$op" in
+  pacman)
+    # Package installs, removals and upgrades.
+    exec /usr/bin/pacman "$@"
+    ;;
+  mirrors)
+    # Refresh the mirror list with the system's reflector configuration.
+    exec /usr/bin/systemctl start reflector.service
+    ;;
+  timeshift)
+    case "${1:-}" in
+      --list|--create|--delete|--restore) ;;
+      *) echo "archupdater-root: timeshift action '${1:-}' is not allowed" >&2; exit 2 ;;
+    esac
+    export LC_ALL=C
+    exec /usr/bin/timeshift "$@"
+    ;;
+  paccache)
+    # Keep the two newest versions of each package in the cache.
+    exec /usr/bin/paccache -rk2
+    ;;
+  *)
+    echo "archupdater-root: unknown operation '$op'" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>ArchUpdater</vendor>
+  <vendor_url>https://github.com/ppcharcoal/archupdater</vendor_url>
+  <icon_name>archupdater</icon_name>
+
+  <action id="io.github.ppcharcoal.archupdater.root">
+    <description>Install, update or remove software and manage snapshots</description>
+    <message>ArchUpdater needs your password to change installed software or system snapshots</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- remember the password for a few minutes, so one update = one prompt -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/archupdater/archupdater-root</annotate>
+  </action>
+</policyconfig>

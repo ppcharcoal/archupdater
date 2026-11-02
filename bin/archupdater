@@ -1,0 +1,4 @@
+#!/bin/sh
+# Launcher installed to /usr/bin/archupdater. The code lives in /usr/share,
+# outside Python's site-packages, so Python version upgrades don't affect it.
+exec /usr/bin/python3 -B -c 'import sys; sys.path.insert(0, "/usr/share/archupdater"); from archupdater.ui.main import main; sys.exit(main())' "$@"
