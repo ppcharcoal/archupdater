@@ -1,9 +1,9 @@
 # Maintainer: ppcharcoal
 # Build from a clone of this repository:  makepkg -si
 pkgname=archupdater
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
-pkgdesc="Simple software manager for Arch: installed apps, updates, AUR + Flathub store, Timeshift snapshots"
+pkgdesc="Simple software manager for Arch: installed apps, updates, AUR + Flathub store, AppImages, Timeshift snapshots"
 arch=('any')
 url="https://github.com/ppcharcoal/archupdater"
 license=('MIT')
@@ -14,6 +14,7 @@ optdepends=(
   'timeshift: system snapshots'
   'timeshift-autosnap: automatic snapshot before every update'
   'reflector: refresh mirrors before updating'
+  'fuse2: needed by most AppImages'
   'kitty: "Try in a terminal" fallback (any terminal works)'
 )
 source=()

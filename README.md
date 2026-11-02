@@ -4,6 +4,7 @@ A simple software manager for Arch Linux, in one window:
 
 - **Installed** – every program and package on the system (official repos, AUR, Flatpak), with filters for programs, things you installed, dependencies/libraries and unused packages. Uninstall removes the app *and* the libraries it brought along, but only those nothing else needs. Core system packages (kernel, drivers, desktop, pacman…) are protected.
 - **Get apps** – one search across the official repos, the AUR and Flathub. One click + password to install.
+- **AppImages** – **Install AppImage…** picks a downloaded `.AppImage`, moves it to `~/Applications` (optional), makes it executable, pulls its icon and name out of the file and adds it to your app launcher. Installed AppImages (including ones you set up by hand) show up under the **AppImages** filter, where you can **update** one by choosing the newer file, or **uninstall** it (launcher entry, icon and optionally the file). If `fuse2` is missing it's installed first.
 - **Updates** – everything that can be updated, the latest Arch news (with a warning when there's news since your last update), and an **Update everything** button that runs the full safe update:
   1. backs up your configs (`~/.config/hypr`, waybar, rofi, kitty, … kept as the newest 10 `.tar.gz` files),
   2. refreshes mirrors with reflector if the list is more than a day old,
@@ -32,13 +33,13 @@ Every push is built and tested on Arch Linux by GitHub Actions (see the **Action
 package is attached to each run). Pushing a version tag also publishes it as a release:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+git tag v1.1.0 && git push origin v1.1.0
 ```
 
 After that, the package can be installed straight from the release:
 
 ```bash
-sudo pacman -U https://github.com/ppcharcoal/archupdater/releases/download/v1.0.0/archupdater-1.0.0-1-any.pkg.tar.zst
+sudo pacman -U https://github.com/ppcharcoal/archupdater/releases/download/v1.1.0/archupdater-1.1.0-1-any.pkg.tar.zst
 ```
 
 ### Update ArchUpdater itself
@@ -55,6 +56,7 @@ cd archupdater && git pull && makepkg -si
 | `flatpak` | Flathub apps |
 | `timeshift`, `timeshift-autosnap` (AUR) | snapshots, automatic snapshot before updates |
 | `reflector` | mirror refresh |
+| `fuse2` | running most AppImages (installed automatically when needed) |
 
 Anything that isn't installed is simply skipped or hidden.
 

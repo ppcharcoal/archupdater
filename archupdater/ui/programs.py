@@ -1,11 +1,13 @@
 """Installed software: programs, all packages, AUR, Flatpak, unused packages."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit, QPushButton,
                                QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
-from .. import aur, flatpak, pacman
+import os
+
+from .. import appimage, aur, flatpak, pacman
 from ..util import human_size
 from .common import busy_cursor, card, confirm_list, icon, info, muted_label, pixmap, run_async, title_label, warn
 from .tasks import Step, run_task
@@ -17,10 +19,11 @@ FILTERS = [
     ("Dependencies (libraries)", "deps"),
     ("AUR packages", "aur"),
     ("Flatpak apps", "flatpak"),
+    ("AppImages", "appimage"),
     ("Unused packages", "orphans"),
 ]
 
-SOURCE_NAMES = {"repo": "Official", "aur": "AUR", "flatpak": "Flatpak"}
+SOURCE_NAMES = {"repo": "Official", "aur": "AUR", "flatpak": "Flatpak", "appimage": "AppImage"}
 
 
 class _Item(QTreeWidgetItem):
@@ -35,15 +38,16 @@ def load_everything():
     pkgs = pacman.installed_packages()
     apps = flatpak.installed_apps()
     orph = set(pacman.orphans())
-    return pkgs, apps, orph
+    images = appimage.installed()
+    return pkgs, apps, orph, images
 
 
 class ProgramsPage(QWidget):
     def __init__(self, main):
         super().__init__()
         self.main = main
-        self.pkgs, self.flatpaks, self.orphans = {}, [], set()
-        self.current = None  # ("pkg", name) / ("flatpak", id)
+        self.pkgs, self.flatpaks, self.orphans, self.appimages = {}, [], set(), []
+        self.current = None  # ("pkg", name) / ("flatpak", id) / ("appimage", id)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 18, 18, 18)
@@ -53,6 +57,7 @@ class ProgramsPage(QWidget):
         head.addWidget(title_label("Installed software", 20))
         head.addStretch(1)
         self.count = muted_label("")
+        self.count.setWordWrap(False)
         head.addWidget(self.count)
         lay.addLayout(head)
 
@@ -71,6 +76,10 @@ class ProgramsPage(QWidget):
         self.clean_btn.clicked.connect(self.remove_orphans)
         self.clean_btn.hide()
         bar.addWidget(self.clean_btn)
+        add_img = QPushButton(icon("list-add"), "Install AppImage…")
+        add_img.setToolTip("Install an .AppImage file and add it to the app launcher")
+        add_img.clicked.connect(self.install_appimage)
+        bar.addWidget(add_img)
         refresh = QPushButton(icon("view-refresh"), "")
         refresh.setToolTip("Reload the list")
         refresh.clicked.connect(self.load)
@@ -146,7 +155,7 @@ class ProgramsPage(QWidget):
         if error or result is None:
             self.count.setText(f"Could not load packages: {error}")
             return
-        self.pkgs, self.flatpaks, self.orphans = result
+        self.pkgs, self.flatpaks, self.orphans, self.appimages = result
         self.main.installed = self.pkgs
         self.main.flatpak_ids = {a["id"] for a in self.flatpaks}
         self.populate()
@@ -159,7 +168,7 @@ class ProgramsPage(QWidget):
         self.tree.setSortingEnabled(False)
         self.tree.clear()
         rows = []
-        if key != "flatpak":
+        if key not in ("flatpak", "appimage"):
             for p in self.pkgs.values():
                 if key == "programs" and not p.app_name:
                     continue
@@ -183,18 +192,24 @@ class ProgramsPage(QWidget):
                 if query and query not in hay:
                     continue
                 rows.append((a["name"], a["version"], "Flatpak", a["size"], ("flatpak", a["id"]), a["id"]))
+        if key in ("programs", "appimage", "all"):
+            for a in self.appimages:
+                hay = f"{a['name']} {a['path']}".lower()
+                if query and query not in hay:
+                    continue
+                rows.append((a["name"], "", "AppImage", a["size"], ("appimage", a["id"]), a["icon"]))
         for name, version, source, size, ref, ic in rows:
             it = _Item([name, version, source, human_size(size)])
             it.setData(0, Qt.UserRole, ref)
             it.setData(3, Qt.UserRole, size)
-            if key in ("programs", "flatpak"):
+            if key in ("programs", "flatpak", "appimage"):
                 it.setIcon(0, icon(ic, "application-x-executable"))
             if self.main.update_for(ref):
                 it.setText(1, f"{version}  ↑")
                 it.setToolTip(1, "Update available")
             self.tree.addTopLevelItem(it)
         self.tree.setSortingEnabled(True)
-        noun = {"programs": "programs", "flatpak": "apps"}.get(key, "packages")
+        noun = {"programs": "programs", "flatpak": "apps", "appimage": "AppImages"}.get(key, "packages")
         self.count.setText(f"{len(rows)} {noun}")
         if rows:
             self.tree.setCurrentItem(self.tree.topLevelItem(0))
@@ -244,6 +259,28 @@ class ProgramsPage(QWidget):
                 self.d_form.addRow("Needed by:", needed)
             if p.name in self.orphans:
                 self.d_form.addRow("", muted_label("Nothing uses this anymore - safe to remove."))
+        elif kind == "appimage":
+            a = self._appimage(key)
+            if a is None:
+                return
+            self.d_icon.setPixmap(pixmap(a["icon"] or "application-x-executable", 48, "application-x-executable"))
+            self.d_title.setText(a["name"])
+            self.d_sub.setText("AppImage" + (" · added by ArchUpdater" if a["managed"] else ""))
+            self.d_desc.setText(a["comment"])
+            path = QLabel(a["path"])
+            path.setWordWrap(True)
+            path.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            self.d_form.addRow("File:", path)
+            self.d_form.addRow("Size:", QLabel(human_size(a["size"]) or "–"))
+            if not a["exists"]:
+                self.d_form.addRow("", muted_label("⚠ The AppImage file is missing - only the launcher entry is left."))
+            if not a["desktop"]:
+                self.d_form.addRow("", muted_label("Not in the app launcher yet."))
+            self.update_btn.setText("Add to launcher" if (not a["desktop"] and a["exists"]) else "Update with newer file…")
+            self.update_btn.show()
+            self.remove_btn.show()
+            self.d_update.setText("")
+            return
         else:
             a = next((x for x in self.flatpaks if x["id"] == key), None)
             if a is None:
@@ -263,6 +300,9 @@ class ProgramsPage(QWidget):
             self.update_btn.hide()
         self.remove_btn.show()
 
+    def _appimage(self, key):
+        return next((x for x in self.appimages if x["id"] == key), None)
+
     def _is_aur(self, name):
         p = self.pkgs.get(name)
         return p is not None and p.source == "aur"
@@ -273,6 +313,8 @@ class ProgramsPage(QWidget):
         if not self.current:
             return
         kind, key = self.current
+        if kind == "appimage":
+            return self._update_appimage(key)
         if kind == "flatpak":
             steps = [Step(f"Updating {key}", flatpak.update_cmd(key))]
         elif self._is_aur(key):
@@ -292,6 +334,8 @@ class ProgramsPage(QWidget):
         if not self.current:
             return
         kind, key = self.current
+        if kind == "appimage":
+            return self._uninstall_appimage(key)
         if kind == "flatpak":
             return self._uninstall_flatpak(key)
         self._uninstall_pkgs([key])
@@ -356,3 +400,87 @@ class ProgramsPage(QWidget):
         names = sorted(n for n in self.orphans if n not in pacman.CRITICAL)
         if names:
             self._uninstall_pkgs(names, title="Remove unused packages")
+
+    # ---- AppImages ------------------------------------------------------------------
+
+    def install_appimage(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Choose an AppImage", os.path.expanduser("~/Downloads"),
+                                              "AppImages (*.AppImage *.appimage);;All files (*)")
+        if not path:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Install AppImage")
+        dlg.setMinimumWidth(460)
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(f"Install <b>{os.path.basename(path)}</b>"))
+        form = QFormLayout()
+        name = QLineEdit()
+        name.setPlaceholderText("Leave empty to use the app's own name")
+        form.addRow("Name in launcher:", name)
+        lay.addLayout(form)
+        move = QCheckBox(f"Move the file to {appimage.APPS_DIR}")
+        move.setChecked(os.path.dirname(os.path.abspath(path)) != appimage.APPS_DIR)
+        move.setToolTip("Keeps all AppImages in one place. Untick to leave it where it is.")
+        lay.addWidget(move)
+        if not os.path.realpath(path).startswith(os.path.expanduser("~") + os.sep):
+            move.setChecked(True)
+            move.setEnabled(False)
+        lay.addWidget(muted_label("Only install AppImages from sources you trust - they run with your user's access."))
+        bb = QDialogButtonBox(QDialogButtonBox.Cancel)
+        b = bb.addButton("Install", QDialogButtonBox.AcceptRole)
+        b.setObjectName("primary")
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        lay.addWidget(bb)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        steps = []
+        if not appimage.fuse2_installed():
+            steps.append(Step("Installing fuse2 (needed to run AppImages)", pacman.install_cmd(["fuse2"]),
+                              optional=True))
+        steps.append(Step("Installing the AppImage",
+                          func=lambda log: appimage.install(path, name.text(), move.isChecked(), log)))
+        run_task(self, "Install AppImage", steps)
+        self.main.after_change()
+
+    def _update_appimage(self, key):
+        a = self._appimage(key)
+        if a is None:
+            return
+        if not a["desktop"] and a["exists"]:
+            run_task(self, "Add to launcher", [Step(f"Adding {a['name']} to the launcher",
+                                                    func=lambda log: appimage.add_to_launcher(a, log))])
+            return self.main.after_change()
+        path, _ = QFileDialog.getOpenFileName(self, f"Choose the newer {a['name']} AppImage",
+                                              os.path.expanduser("~/Downloads"),
+                                              "AppImages (*.AppImage *.appimage);;All files (*)")
+        if not path:
+            return
+        run_task(self, "Update AppImage", [Step(f"Updating {a['name']}",
+                                                func=lambda log: appimage.replace(a, path, log))])
+        self.main.after_change()
+
+    def _uninstall_appimage(self, key):
+        a = self._appimage(key)
+        if a is None:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Uninstall")
+        lay = QVBoxLayout(dlg)
+        lay.addWidget(QLabel(f"Uninstall <b>{a['name']}</b>?"))
+        delete = QCheckBox(f"Also delete the AppImage file ({os.path.basename(a['path'])})")
+        delete.setChecked(True)
+        delete.setEnabled(a["exists"])
+        lay.addWidget(delete)
+        lay.addWidget(muted_label("Settings the app saved in your home folder are kept."))
+        bb = QDialogButtonBox(QDialogButtonBox.Cancel)
+        b = bb.addButton("Uninstall", QDialogButtonBox.AcceptRole)
+        b.setObjectName("danger")
+        bb.accepted.connect(dlg.accept)
+        bb.rejected.connect(dlg.reject)
+        lay.addWidget(bb)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        run_task(self, "Uninstall", [Step(f"Removing {a['name']}",
+                                          func=lambda log: appimage.uninstall(a, delete.isChecked(), log))])
+        self.main.after_change()

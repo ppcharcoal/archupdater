@@ -75,6 +75,10 @@ class StorePage(QWidget):
         go.setObjectName("primary")
         go.clicked.connect(self.do_search)
         bar.addWidget(go)
+        img = QPushButton(icon("list-add"), "Install AppImage…")
+        img.setToolTip("Install a downloaded .AppImage file")
+        img.clicked.connect(lambda: self.main.programs.install_appimage())
+        bar.addWidget(img)
         lay.addLayout(bar)
 
         chips = QHBoxLayout()
